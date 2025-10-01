@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports: ["6333:6333","6334:6334"]
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports: ["11434:11434"]
+    volumes:
+      - ollama_models:/root/.ollama
+
+  ingest:
+    build:
+      context: ./ingest
+      dockerfile: Dockerfile
+    container_name: ingest
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_URL: http://ollama:11434
+      TEXT_EMBED_MODEL: ${TEXT_EMBED_MODEL:-nomic-embed-text}
+      COLLECTION_NAME: ${COLLECTION_NAME:-docs_text}
+      CHUNK_SIZE: ${CHUNK_SIZE:-800}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-120}
+      MAX_WIKI_PAGES: "10000"   # or 500 / 1000 to sanity check
+      # quote the glob
+      WIKI_DUMP_GLOB: "/app/data/wikipedia/*pages-articles-multistream.xml.bz2"  # prefer .bz2
+    volumes:
+      - ./data:/app/data:rw
+      - ./data/wikipedia:/app/data/wikipedia:ro
+    depends_on: [qdrant, ollama]
+    command: ["python","ingest.py"]
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: api
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_URL: http://ollama:11434
+      TEXT_EMBED_MODEL: ${TEXT_EMBED_MODEL:-nomic-embed-text}
+      GENERATION_MODEL: llama3.1:8b
+      COLLECTION_NAME: ${COLLECTION_NAME:-docs_text}
+      TOP_K: ${TOP_K:-6}
+    ports: ["8000:8000"]
+    depends_on: [qdrant, ollama]
+
+  web:
+    image: nginx:alpine
+    container_name: web
+    ports: ["8080:80"]
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    depends_on: [api]
+
+
+volumes:
+  qdrant_storage:
+  ollama_models:
