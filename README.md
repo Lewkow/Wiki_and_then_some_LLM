@@ -18,7 +18,7 @@ git clone https://github.com/Lewkow/Wiki_and_then_some_LLM.git
 cd Wiki_and_then_some_LLM
 
 # 2. Download Simple English Wikipedia dump
-./scripts/get_simplewiki.sh
+./wikapedia/download_wiki.sh
 
 # 3. Start stack
 docker compose up --build
